@@ -1,0 +1,97 @@
+---
+title: "Practical Machine Learning Project"
+author: "Sachi Norman"
+date: "31 January 2016"
+output: html_document
+---
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement ??? a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, I will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. To identify if they perform barbell lifts correctly or incorrectly in 5 different ways:
+
+1. A - Exactly according to specification
+2. B - Throwing the elbows to the front
+3. C - Lifting the dumbell only halfway
+4. D - Lowering the dumbell only halfway
+5. E - Throwing the hips to the front
+
+A machine learning model will be trained on the data set to predict the classe variable based on the activity data.
+
+##Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+libraries requiered
+```{r echo=FALSE}
+library(caret)
+```
+
+##Loading Data and Partitioning
+```{r cache=TRUE}
+trainurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainset <- read.csv(url(trainurl),na.strings = c("NA","#DIV/0!",""))
+testset <- read.csv(url(testurl),na.strings = c("NA","#DIV/0!",""))
+
+inTrain <- createDataPartition(trainset$classe,p=0.7,list=FALSE)
+mytrain <- trainset[inTrain,]
+myvalid <- trainset[-inTrain,]
+```
+##Cleaning the Data
+Remove the id column from the dataset
+```{r}
+mytrain <- mytrain[c(-1)]
+```
+Removing variable with near zero variance that can not contribute to explaining the variance in the classe variable from the training and validation sets
+```{r}
+nzvT <- nearZeroVar(mytrain,saveMetrics = TRUE)
+mytrain <- mytrain[,nzvT$nzv == FALSE]
+```
+Removing variables with high precentage of NA values more than 65%
+```{r}
+mytrain <- mytrain[, colSums(is.na(mytrain)) < nrow(mytrain) * 0.65]
+```
+Applying the same transformations on the validation and test sets
+```{r}
+myvalid <- myvalid[,colnames(mytrain)]
+testset <- testset[,colnames(mytrain[,-58])]
+```
+##Developing a Prediction Model
+```{r}
+set.seed(3468)
+```
+##Predict using Gradient Boosting
+```{r cache=TRUE}
+fitc <- trainControl(method = "repeatedcv",number = 5,repeats = 1)
+gbm1 <- train(classe~.,data=mytrain,method="gbm",trControl=fitc,verbose = FALSE)
+gbmpred <- predict(gbm1,newdata=myvalid)
+gbmacc <- confusionMatrix(gbmpred,myvalid$classe)
+gbmacc
+```
+
+```{r}
+plot(gbm1,ylim = c(0.9,1))
+```
+
+##Predict Using Random Forest
+```{r cache=TRUE}
+RF <- train(classe~.,data=mytrain,method="rf",prox=TRUE,allowParallel=TRUE)
+predRF <- predict(RF,myvalid)
+cmrf <- confusionMatrix(predRF,myvalid$classe)
+cmrf
+```
+
+```{r}
+plot(RF)
+```
+
+##Predicting Test Data
+```{r}
+predtest <- predict(RF,testset)
+predtest
+```
